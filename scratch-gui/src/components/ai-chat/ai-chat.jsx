@@ -311,27 +311,98 @@ class AiChatSidebar extends React.Component {
                 const idMap = {};
                 rawBlocks.forEach(b => { idMap[b.id] = b.id + uidSuffix; });
 
-                const blocksArray = rawBlocks.map(b => {
+                const blocksArray = [];
+                // 第一个 pass: 将原始积木的常规属性处理完毕
+                rawBlocks.forEach(b => {
                     const newB = { ...b, id: idMap[b.id] };
                     if (newB.next && idMap[newB.next]) newB.next = idMap[newB.next];
                     if (newB.parent && idMap[newB.parent]) newB.parent = idMap[newB.parent];
                     
+                    if (!newB.fields) newB.fields = {};
+
+                    // 防呆处理 1.5：兜底关键的 Hat Block Fields (防止引擎尝试读属性时因为undefined导致运行时崩溃)
+                    if (newB.opcode === 'event_whenkeypressed' && !newB.fields.KEY_OPTION) {
+                        newB.fields.KEY_OPTION = ["space", null];
+                    } else if (newB.opcode === 'event_whenbroadcastreceived' && !newB.fields.BROADCAST_OPTION) {
+                        newB.fields.BROADCAST_OPTION = ["message1", "message1"];
+                    } else if (newB.opcode === 'event_whenbackdropswitchesto' && !newB.fields.BACKDROP) {
+                        newB.fields.BACKDROP = ["backdrop1", null];
+                    } else if (newB.opcode === 'event_whengreaterthan' && !newB.fields.WHENGREATERTHANMENU) {
+                        newB.fields.WHENGREATERTHANMENU = ["LOUDNESS", null];
+                    }
+
+                    // 转换 Fields 格式： [ "value", "id" ] => { name: "xx", value: "xx" }
+                    if (newB.fields) {
+                        const newFields = {};
+                        for (const fieldKey in newB.fields) {
+                            const fieldVal = newB.fields[fieldKey];
+                            if (Array.isArray(fieldVal)) {
+                                newFields[fieldKey] = { name: fieldKey, value: fieldVal[0] };
+                                if (fieldVal.length > 1 && fieldVal[1]) newFields[fieldKey].id = fieldVal[1];
+                            } else {
+                                newFields[fieldKey] = fieldVal; // 若大模型已经写出对象，则保持
+                            }
+                        }
+                        newB.fields = newFields;
+                    }
+                    blocksArray.push(newB);
+                });
+
+                // 第二个 pass: 转换 Inputs 格式
+                // 从 SB3 (如 [1, [4, "10"]]) 转置到内存里的 AST ({name, block, shadow})
+                const extraShadowBlocks = [];
+                blocksArray.forEach(newB => {
                     if (newB.inputs) {
                         const newInputs = {};
                         for (const inputKey in newB.inputs) {
                             const inputVal = newB.inputs[inputKey];
-                            const clonedInput = JSON.parse(JSON.stringify(inputVal));
-                            if (Array.isArray(clonedInput) && clonedInput.length >= 2) {
-                                if (typeof clonedInput[1] === 'string' && idMap[clonedInput[1]]) {
-                                    clonedInput[1] = idMap[clonedInput[1]];
+                            if (Array.isArray(inputVal)) {
+                                let blockId = null;
+                                let shadowId = null;
+                                const shadowType = inputVal[0];
+                                
+                                if (shadowType === 1) { // INPUT_SAME_BLOCK_SHADOW
+                                    if (Array.isArray(inputVal[1])) {
+                                        // 这里嵌套了基础变量，例如 [4, "10"] 或 [10, "hello"]。必须凭空切一个 shadow block 出来。
+                                        const inlineId = 'shadow_' + uidSuffix + '_' + Math.random().toString(36).substr(2, 6);
+                                        const opcodeMap = {4: 'math_number', 5: 'math_positive_number', 6: 'math_whole_number', 7: 'math_integer', 8: 'math_angle', 9: 'colour_picker', 10: 'text', 11: 'event_broadcast_menu', 12: 'data_variable', 13: 'data_listcontents'};
+                                        const fieldMap = {4: 'NUM', 5: 'NUM', 6: 'NUM', 7: 'NUM', 8: 'NUM', 9: 'COLOUR', 10: 'TEXT', 11: 'BROADCAST_OPTION', 12: 'VARIABLE', 13: 'LIST'};
+                                        
+                                        const primOpcode = opcodeMap[inputVal[1][0]];
+                                        const primField = fieldMap[inputVal[1][0]];
+                                        if (primOpcode) {
+                                            const primBlock = {
+                                                id: inlineId, opcode: primOpcode, inputs: {},
+                                                fields: {}, next: null, parent: newB.id,
+                                                shadow: true, topLevel: false
+                                            };
+                                            primBlock.fields[primField] = { name: primField, value: inputVal[1][1] };
+                                            extraShadowBlocks.push(primBlock);
+                                            blockId = inlineId; shadowId = inlineId;
+                                        }
+                                    } else {
+                                        blockId = (typeof inputVal[1] === 'string' && idMap[inputVal[1]]) ? idMap[inputVal[1]] : inputVal[1];
+                                        shadowId = blockId;
+                                    }
+                                } else if (shadowType === 2) { // INPUT_BLOCK_NO_SHADOW
+                                    blockId = (typeof inputVal[1] === 'string' && idMap[inputVal[1]]) ? idMap[inputVal[1]] : inputVal[1];
+                                    shadowId = null;
+                                } else if (shadowType === 3) { // INPUT_DIFF_BLOCK_SHADOW
+                                    blockId = (typeof inputVal[1] === 'string' && idMap[inputVal[1]]) ? idMap[inputVal[1]] : inputVal[1];
+                                    shadowId = (typeof inputVal[2] === 'string' && idMap[inputVal[2]]) ? idMap[inputVal[2]] : inputVal[2];
                                 }
+
+                                newInputs[inputKey] = { name: inputKey, block: blockId, shadow: shadowId };
+                            } else {
+                                newInputs[inputKey] = inputVal;
                             }
-                            newInputs[inputKey] = clonedInput;
                         }
                         newB.inputs = newInputs;
                     }
-                    return newB;
                 });
+                
+                // 将拆解的内嵌 shadow 块也挂到载入池里
+                blocksArray.push(...extraShadowBlocks);
 
                 // 防呆处理 2：强制分配根节点和视窗坐标，防止由于 AI 少生成字段导致渲染隐形
                 blocksArray[0].topLevel = true;
@@ -339,9 +410,63 @@ class AiChatSidebar extends React.Component {
                 blocksArray[0].x = 100 + Math.floor(Math.random() * 100);
                 blocksArray[0].y = 100 + Math.floor(Math.random() * 100);
 
-                await this.props.vm.shareBlocksToTarget(blocksArray, this.props.vm.editingTarget.id);
-                this.props.vm.emitWorkspaceUpdate(); // 强制刷新画布
-                console.log('✅ AST Blocks Injected natively with safe salting!');
+                // 第三步: 图结构防呆检查 (AST Cycle Breaker)
+                // 确保大模型没有把循环体底部积木的 next 错误地指回父级节点，形成破坏 Webpack 渲染栈的无限死循环
+                const buildAdjacencyList = () => {
+                    const adj = {};
+                    blocksArray.forEach(b => {
+                        const children = [];
+                        if (b.next) children.push({ type: 'next', id: b.next });
+                        if (b.inputs) {
+                            for (const key in b.inputs) {
+                                const ptr = b.inputs[key];
+                                if (ptr && ptr.block) children.push({ type: 'input', key, id: ptr.block });
+                                if (ptr && ptr.shadow && ptr.shadow !== ptr.block) children.push({ type: 'shadow', key, id: ptr.shadow });
+                            }
+                        }
+                        adj[b.id] = children;
+                    });
+                    return adj;
+                };
+
+                const adj = buildAdjacencyList();
+                const visited = new Set();
+                const recursionStack = new Set();
+
+                const dfsBreakCycles = (nodeId) => {
+                    if (!nodeId || !idMap[nodeId.replace(uidSuffix, '')] && !nodeId.startsWith('shadow_')) return;
+                    if (recursionStack.has(nodeId)) return true; // Found a cycle!
+                    if (visited.has(nodeId)) return false;
+
+                    visited.add(nodeId);
+                    recursionStack.add(nodeId);
+
+                    const children = adj[nodeId] || [];
+                    for (const child of children) {
+                        const hasCycle = dfsBreakCycles(child.id);
+                        if (hasCycle) {
+                            console.warn(`AST Cycle Breaker: 断开了危险的无限循环引用 ${nodeId} -> ${child.id}`);
+                            const blockItem = blocksArray.find(x => x.id === nodeId);
+                            if (blockItem) {
+                                if (child.type === 'next') blockItem.next = null;
+                                else if (child.type === 'input') blockItem.inputs[child.key].block = null;
+                                else if (child.type === 'shadow') blockItem.inputs[child.key].shadow = null;
+                            }
+                        }
+                    }
+                    recursionStack.delete(nodeId);
+                    return false;
+                };
+
+                blocksArray.filter(b => b.topLevel).forEach(b => dfsBreakCycles(b.id));
+
+                try {
+                    await this.props.vm.shareBlocksToTarget(blocksArray, this.props.vm.editingTarget.id);
+                    this.props.vm.emitWorkspaceUpdate(); // 强制刷新画布
+                    console.log('✅ AST Blocks Injected natively with safe salting!');
+                } catch (e) {
+                    console.error("Injection failed:", e);
+                }
 
         this.setState({ loadingBlockIdx: null });
     };

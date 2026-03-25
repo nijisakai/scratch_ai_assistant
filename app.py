@@ -99,7 +99,7 @@ def chat():
     dashscope.api_key = api_key
     
     # dynamically load persona to allow real-time edits without restarting (if possible)
-    persona_path = os.path.join(os.path.dirname(__file__), 'ai_persona.txt')
+    persona_path = os.path.join(os.path.dirname(__file__), 'ai_persona.md')
     try:
         with open(persona_path, 'r', encoding='utf-8') as f:
             system_prompt = f.read()
@@ -235,13 +235,39 @@ def compile_sb3_block():
 - opcode (合法的 Scratch opcode，如 event_whenflagclicked, motion_movesteps)
 - next (指向下一个 block 的 id，没有填 null)
 - parent (上一个 block 的 id，没有填 null)
-- inputs (输入参数字典，例如："STEPS": [1, [4, "10"]])
+- inputs (输入参数字典，例如对于步数："STEPS": [1, [4, "10"]])
 - fields (字段参数字典)
 - shadow (布尔值 false)
 - topLevel (布尔值)
-- 如果是首个积木，通常加上 "x": 100, "y": 100 方便在画布看到。
-要求：确保数组内第一个积木的 topLevel 为 true，其余为 false。
-请根据用户的英文代码片段，精准生成严格格式对应的 JSON 数组。返回结果必须是从 [ 开始的 JSON！"""
+要求：
+1. 首个积木的 topLevel 为 true 并加上 "x": 100, "y": 100，其余的 block topLevel 必须为 false。
+2. 极其关键的嵌套（C型积木）：当遇到 `repeat (4)` 或 `if` 这样的包裹结构，你【绝对不能】省略内部的代码，并且内部的结构必须像这样严密嵌套：
+   对于 `control_repeat`：
+   - 次数参数必须叫 "TIMES" 并使用格式 `[1, [4, "4"]]`。
+   - 包裹的【第一个子积木】的 id，必须以 `[2, "子积木的id"]` 格式存放在它的 "SUBSTACK" 参数里！
+例如一个 repeat 包含 move 的严格范例:
+[
+  {
+    "id": "block_repeat",
+    "opcode": "control_repeat",
+    "parent": "block_start",
+    "next": null,
+    "inputs": {
+      "TIMES": [1, [4, "4"]],
+      "SUBSTACK": [2, "block_inside_1"]
+    },
+    "topLevel": false
+  },
+  {
+    "id": "block_inside_1",
+    "opcode": "motion_movesteps",
+    "parent": "block_repeat",
+    "next": null,
+    "inputs": { "STEPS": [1, [4, "10"]] },
+    "topLevel": false
+  }
+]
+请根据用户的英文代码片段，精准生成遵循上述【SUBSTACK 指针】严格格式对应的 JSON 数组。返回结果必须是从 [ 开始的 JSON！"""
 
     try:
         print(f"DEBUG Compiler Input: {block_text}", flush=True)
