@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>智创未来 - Scratch AI 编程助手</title>
+    <link rel="icon" href="data:,">
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="https://fastly.jsdelivr.net/npm/scratchblocks@3.6.4/build/scratchblocks.min.js"></script>
+    <script src="https://fastly.jsdelivr.net/npm/scratchblocks@3.6.4/build/translations-all.js"></script>
+    <style>
+        :root {
+            --scratch-orange: #ff8c1a;
+            --scratch-purple: #855cd6;
+            --scratch-blue: #4c97ff;
+            --bg-color: #f3f4f6;
+        }
+        body {
+            font-family: 'Inter', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #fdfbfb 0%, #ebedee 100%);
+            margin: 0;
+            padding: 20px;
+            color: #333;
+            height: 100vh;
+            box-sizing: border-box;
+            display: flex;
+            flex-direction: column;
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 20px;
+            flex-shrink: 0;
+        }
+        .header h1 {
+            color: var(--scratch-purple);
+            font-size: 28px;
+            margin: 0 0 5px 0;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.1);
+        }
+        .header p { color: #666; font-size: 15px; margin: 0; }
+        
+        .container {
+            display: flex;
+            max-width: 1400px;
+            margin: 0 auto;
+            gap: 20px;
+            flex-grow: 1;
+            width: 100%;
+            height: 0; /* Let flex-grow handle it */
+        }
+        
+        .chat-panel {
+            flex: 2;
+            background: white;
+            border-top: 5px solid var(--scratch-orange);
+            border-radius: 16px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.05);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        
+        .chat-history {
+            flex-grow: 1;
+            padding: 20px;
+            overflow-y: auto;
+            background: #fafafa;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+        
+        .message {
+            max-width: 85%;
+            padding: 15px 20px;
+            border-radius: 12px;
+            line-height: 1.5;
+            font-size: 15px;
+        }
+        .msg-user {
+            background: #e0f2fe;
+            color: #0369a1;
+            align-self: flex-end;
+            border-bottom-right-radius: 2px;
+        }
+        .msg-ai {
+            background: white;
+            color: #374151;
+            align-self: flex-start;
+            border-bottom-left-radius: 2px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+            border: 1px solid #f3f4f6;
+            width: 100%;
+        }
+        .msg-ai h1, .msg-ai h2, .msg-ai h3 { margin-top: 10px; color: var(--scratch-purple); font-size: 18px; }
+        .msg-ai code { background: #fee2e2; color: #b91c1c; padding: 2px 6px; border-radius: 4px; font-family: monospace; }
+        .msg-ai pre { background: #1f2937; color: #f3f4f6; padding: 12px; border-radius: 8px; overflow-x: auto; }
+        
+        .chat-input-area {
+            padding: 15px;
+            background: white;
+            border-top: 1px solid #e5e7eb;
+            display: flex;
+            gap: 10px;
+        }
+        .chat-input-area textarea {
+            flex-grow: 1;
+            padding: 12px;
+            border: 2px solid #e5e7eb;
+            border-radius: 8px;
+            font-size: 15px;
+            resize: none;
+            height: 50px;
+            font-family: inherit;
+        }
+        .chat-input-area textarea:focus {
+            outline: none;
+            border-color: var(--scratch-orange);
+        }
+        .btn-send {
+            background: var(--scratch-orange);
+            color: white;
+            border: none;
+            padding: 0 25px;
+            border-radius: 8px;
+            font-weight: bold;
+            font-size: 16px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .btn-send:hover { background: #ea580c; }
+        .btn-send:disabled { background: #d1d5db; cursor: not-allowed; }
+        
+        .side-panel {
+            flex: 1;
+            min-width: 350px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+        
+        .action-card {
+            background: white;
+            border-top: 5px solid var(--scratch-blue);
+            border-radius: 16px;
+            padding: 25px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.05);
+            text-align: center;
+        }
+        
+        .btn-generate {
+            display: block;
+            width: 100%;
+            padding: 15px;
+            background: linear-gradient(135deg, var(--scratch-purple), #c084fc);
+            color: white;
+            border: none;
+            border-radius: 12px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: transform 0.2s;
+            margin-bottom: 15px;
+        }
+        .btn-generate:hover { transform: translateY(-2px); box-shadow: 0 5px 15px rgba(133, 92, 214, 0.4); }
+        .btn-generate:disabled { background: #d1d5db; box-shadow: none; transform: none; cursor: not-allowed;}
+        
+        .result-box {
+            display: none;
+            text-align: left;
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 1px dashed #e5e7eb;
+        }
+        
+        .btn-download {
+            display: block; text-align: center; background: var(--scratch-blue); color: white;
+            text-decoration: none; padding: 12px; border-radius: 8px; font-weight: bold; margin-bottom: 10px;
+        }
+        .btn-open {
+            display: block; text-align: center; background: #10b981; color: white;
+            text-decoration: none; padding: 12px; border-radius: 8px; font-weight: bold;
+        }
+        
+        .summary-body { font-size: 14px; background: #f8fafc; padding: 15px; border-radius: 8px; margin-bottom:15px; max-height: 250px; overflow-y: auto;}
+    </style>
+</head>
+<body>
+
+<div class="header">
+    <h1>🐱 Scratch AI 编程助手教练</h1>
+    <p>我是你的苏格拉底私教。直接跟我聊天，当我引导你构思完整个项目后，随时点击右侧生成代码包！</p>
+</div>
+
+<div class="container">
+    <div class="chat-panel">
+        <div class="chat-history" id="chat-history">
+            <div class="message msg-ai">
+                👋 你好呀小创客！我是你的 Scratch AI 导师。今天你想创作一个什么样的好玩项目呢？大胆把想法用大白话告诉我吧！
+            </div>
+        </div>
+        
+        <div class="chat-input-area">
+            <textarea id="chat-input" placeholder="输入你想做的游戏功能... (按 Enter 发送)" onkeydown="if(event.key==='Enter' && !event.shiftKey) { event.preventDefault(); sendMessage(); }"></textarea>
+            <button id="btn-send" class="btn-send" onclick="sendMessage()">发送</button>
+        </div>
+    </div>
+
+    <div class="side-panel">
+        <div class="action-card">
+            <h3 style="margin-top:0; color: #333;">📦 打包与联调中心</h3>
+            <p style="font-size: 13px; color: #666; margin-bottom: 20px;">随时一键将左侧咱们探讨的重要积木和计算思维打包为 Scratch (.sb3) 通信底层工程。</p>
+            
+            <button id="btn-generate" class="btn-generate" onclick="generateProject()">🪄 一键生成当期探讨的代码 (SB3)</button>
+            <div id="gen-loading" style="display:none;font-size:13px;color:var(--scratch-orange);">正在汇编底层 JSON，提炼精华，请稍候...</div>
+            
+            <div id="result-box" class="result-box">
+                <h4 style="margin:0 0 10px 0; color: var(--scratch-purple);">🌟 本轮思维提炼</h4>
+                <div id="summary-content" class="summary-body markdown-body"></div>
+                
+                <a id="download-link" href="#" class="btn-download" download>⏬ 下载 Scratch .sb3 文件</a>
+                <!-- 去掉免翻墙字眼，直接进入开发系统 -->
+                <a href="http://127.0.0.1:8601" target="_blank" class="btn-open">💻 直接进入本地开发系统导入运行</a>
+                
+                <h4 style="margin: 20px 0 5px 0; color: #333; font-size: 15px;">🐍 Scratchattach 魔法联控桥接:</h4>
+                <div style="font-size:12px; color:#666; text-align:left; margin-bottom:10px; line-height: 1.5;">
+                    <b>💡 使用必看指南：</b><br>
+                    1. 确保电脑已安装 Python，并在命令行运行过打底环境：<code>pip install scratchattach</code><br>
+                    2. 因为极速的实时云变量机制仅在官网开放，你需要把刚才下载的 <b>SB3 文件导入 Scratch 官方在线编辑器</b>。<br>
+                    3. 将下方的代码复制并保存为 <code>AI_brain.py</code>，双击运行。<br>
+                    4. 大模型的小猫机器人就会完全被赋予生命啦，试着修改下面代码给小猫制造不同的回复！
+                </div>
+                <textarea id="py-code" style="width:100%; height:120px; font-size:12px; font-family:monospace; background:#1e293b; color:#22c55e; border-radius:6px; padding:10px;" readonly></textarea>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    let messages = [];
+
+    async function sendMessage() {
+        const inputEl = document.getElementById('chat-input');
+        const text = inputEl.value.trim();
+        if (!text) return;
+        
+        // 渲染用户输入
+        addMessageToChat('user', text);
+        messages.push({role: 'user', content: text});
+        inputEl.value = '';
+        
+        const btnSend = document.getElementById('btn-send');
+        btnSend.disabled = true;
+        
+        // 预留 AI 流式气泡
+        const aiMsgDiv = addMessageToChat('ai', '...');
+        let currentAiText = "";
+        
+        try {
+            const response = await fetch('/api/chat', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({messages: messages})
+            });
+            
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder("utf-8");
+            
+            aiMsgDiv.innerHTML = ""; // 清空 ...
+            
+            while (true) {
+                const {done, value} = await reader.read();
+                if (done) {
+                    // 流结束后再进行底层的 SVG 转换，避免实时 innerHTML 覆盖导致闪烁或失败
+                    setTimeout(() => {
+                        try {
+                            scratchblocks.renderMatching('.msg-ai pre code.language-scratch', {
+                                style: 'scratch3',
+                                languages: ['en']
+                            });
+                        } catch(e) { console.error("Scratchblocks 渲染失败", e); }
+                    }, 100);
+                    break;
+                }
+                
+                const chunkStr = decoder.decode(value);
+                const lines = chunkStr.split('\n\n');
+                
+                for (let line of lines) {
+                    if (line.startsWith('data: ')) {
+                        const dataUrl = line.substring(6);
+                        if (!dataUrl) continue;
+                        const data = JSON.parse(dataUrl);
+                        
+                        if (data.error) {
+                            aiMsgDiv.innerHTML += `<br><span style="color:red">[Error: ${data.error}]</span>`;
+                        } else if (data.content) {
+                            currentAiText += data.content;
+                            // 实时渲染 Markdown 文字
+                            aiMsgDiv.innerHTML = marked.parse(currentAiText);
+                            scrollToBottom();
+                        }
+                    }
+                }
+            }
+            // 保存 AI 历史
+            messages.push({role: 'assistant', content: currentAiText});
+            
+        } catch (err) {
+            aiMsgDiv.innerHTML = `<span style="color:red">网络出错：${err.message}</span>`;
+        } finally {
+            btnSend.disabled = false;
+        }
+    }
+    
+    function addMessageToChat(role, text) {
+        const history = document.getElementById('chat-history');
+        const div = document.createElement('div');
+        div.className = `message msg-${role}`;
+        if (role === 'user') {
+            div.innerText = text;
+        } else {
+            div.innerHTML = marked.parse(text);
+        }
+        history.appendChild(div);
+        scrollToBottom();
+        return div;
+    }
+    
+    function scrollToBottom() {
+        const history = document.getElementById('chat-history');
+        history.scrollTop = history.scrollHeight;
+    }
+    
+    async function generateProject() {
+        if (messages.length === 0) {
+            return alert("还没有进行过有价值的探讨，请先在左侧输入你的创意！");
+        }
+        
+        const btn = document.getElementById('btn-generate');
+        const loading = document.getElementById('gen-loading');
+        const resBox = document.getElementById('result-box');
+        
+        btn.disabled = true;
+        loading.style.display = 'block';
+        resBox.style.display = 'none';
+        
+        try {
+            const res = await fetch('/api/generate_sb3', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({messages: messages})
+            });
+            const data = await res.json();
+            
+            if (res.ok && data.success) {
+                document.getElementById('summary-content').innerHTML = marked.parse(data.summary);
+                document.getElementById('download-link').href = data.sb3_url;
+                document.getElementById('py-code').value = data.py_code;
+                resBox.style.display = 'block';
+            } else {
+                alert("生成失败: " + (data.error || "未知"));
+            }
+        } catch (err) {
+            alert("打包通信失败: " + err.message);
+        } finally {
+            btn.disabled = false;
+            loading.style.display = 'none';
+        }
+    }
+</script>
+
+</body>
+</html>
