@@ -1,0 +1,178 @@
+.chatContainer {
+    position: absolute;
+    top: 60px;
+    right: 520px;
+    width: 380px;
+    height: 550px;
+    background: white;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+    border-radius: 12px;
+    display: flex;
+    flex-direction: column;
+    z-index: 9999;
+    font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+    transition: transform 0.3s ease;
+    border: 2px solid #ff7b00;
+}
+
+.chatContainer.collapsed {
+    transform: translateY(min(600px, 110%));
+}
+
+.chatHeader {
+    background: linear-gradient(135deg, #ff7b00, #ff4000);
+    color: white;
+    padding: 15px;
+    border-top-left-radius: 10px;
+    border-top-right-radius: 10px;
+    font-weight: bold;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    cursor: pointer;
+}
+
+.chatToggle {
+    background: none;
+    border: none;
+    color: white;
+    font-size: 20px;
+    cursor: pointer;
+    outline: none;
+}
+
+.floatingToggle {
+    position: absolute;
+    top: 60px;
+    right: 520px;
+    width: 60px;
+    height: 60px;
+    border-radius: 30px;
+    background: linear-gradient(135deg, #ff7b00, #ff4000);
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+    color: white;
+    font-size: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    z-index: 10000;
+    transition: transform 0.2s;
+}
+
+.floatingToggle:hover {
+    transform: scale(1.1);
+}
+
+.chatMessages {
+    flex: 1;
+    overflow-y: auto;
+    padding: 15px;
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    background: #f9f9f9;
+}
+
+.message {
+    max-width: 90%;
+    padding: 10px 14px;
+    border-radius: 8px;
+    line-height: 1.5;
+    word-break: break-word;
+}
+
+.userMessage {
+    align-self: flex-end;
+    background: #4de082;
+    color: white;
+    border-bottom-right-radius: 2px;
+}
+
+.aiMessage {
+    align-self: flex-start;
+    background: white;
+    border: 1px solid #ddd;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+    border-bottom-left-radius: 2px;
+}
+
+.inputContainer {
+    display: flex;
+    padding: 10px;
+    border-top: 1px solid #eee;
+    background: white;
+    border-bottom-left-radius: 10px;
+    border-bottom-right-radius: 10px;
+}
+
+.chatInput {
+    flex: 1;
+    border: 1px solid #ccc;
+    border-radius: 20px;
+    padding: 8px 15px;
+    outline: none;
+    font-size: 14px;
+}
+
+.chatInput:focus {
+    border-color: #ff7b00;
+}
+
+.sendButton {
+    background: #ff7b00;
+    color: white;
+    border: none;
+    border-radius: 20px;
+    padding: 0 20px;
+    margin-left: 10px;
+    cursor: pointer;
+    font-weight: bold;
+    transition: background 0.2s;
+}
+
+.sendButton:hover {
+    background: #e66e00;
+}
+
+.sendButton:disabled {
+    background: #ccc;
+    cursor: not-allowed;
+}
+
+/* 积木包裹和一键发货按钮 */
+.scratchBlockContainer {
+    margin-top: 10px;
+    padding: 10px;
+    background: #fff3e0;
+    border: 1px dashed #ffb74d;
+    border-radius: 8px;
+    text-align: center;
+}
+
+.injectButton {
+    margin-top: 10px;
+    background: #ff7b00;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    padding: 6px 16px;
+    font-size: 13px;
+    font-weight: bold;
+    cursor: pointer;
+    box-shadow: 0 2px 4px rgba(255, 123, 0, 0.3);
+    transition: all 0.2s;
+}
+
+.injectButton:hover {
+    background: #ff5500;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 6px rgba(255, 123, 0, 0.4);
+}
+
+.injectButton:disabled {
+    background: #ccc;
+    box-shadow: none;
+    cursor: not-allowed;
+    transform: none;
+}
