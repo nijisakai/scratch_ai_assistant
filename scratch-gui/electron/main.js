@@ -89,10 +89,24 @@ function startPythonBackend() {
         }
     }
 
+    let startupLogs = '';
     pythonProcess.stdout.on('data', (data) => console.log(`Python: ${data}`));
-    pythonProcess.stderr.on('data', (data) => console.error(`Python Error: ${data}`));
-    pythonProcess.on('exit', (code) => {
-        console.log(`Python backend exited with code ${code}`);
+    pythonProcess.stderr.on('data', (data) => {
+        const text = data.toString();
+        console.error(`Python Error: ${text}`);
+        startupLogs += text;
+        if (startupLogs.length > 800) startupLogs = startupLogs.substring(startupLogs.length - 800);
+    });
+    
+    pythonProcess.on('exit', (code, signal) => {
+        console.log(`Python backend exited with code ${code} and signal ${signal}`);
+        if (code !== 0 && code !== null) {
+            const { dialog } = require('electron');
+            dialog.showErrorBox(
+                '❌ AI 核心引擎异常终止',
+                `后端的 Python 微服务 (端口 5001) 意外崩溃了！\n(退出码: ${code})\n\n这通常是因为：\n1. 您的电脑上 5001 端口已被其他后台程序占用。\n2. 或者缺少运行库依赖。\n\n【诊断日志】\n${startupLogs.trim() || '无日志输出'}`
+            );
+        }
         pythonProcess = null;
     });
 }
@@ -231,6 +245,24 @@ function createWindow() {
                 { role: 'zoomOut', label: '缩小' },
                 { type: 'separator' },
                 { role: 'togglefullscreen', label: '全屏' }
+            ]
+        },
+        {
+            label: '帮助',
+            submenu: [
+                {
+                    label: '关于系统与核心模型',
+                    click: () => {
+                        const { dialog } = require('electron');
+                        dialog.showMessageBox(mainWindow, {
+                            type: 'info',
+                            title: '关于 Socratic Scratch AI',
+                            message: 'Socratic Scratch AI 智能教学助手',
+                            detail: '🚀 开发者：陈虹宇 (北师大 BNU)\\n📧 邮箱：hychen@mail.bnu.edu.cn\\n\\n🤖 核心推理模型：本系统底层由【阿里通义千问 qwen3-max】大语言模型提供支撑。请确保您在“文件 -> 配置”中填入的 API Key 所属账号已开通该模型的权限。',
+                            buttons: ['知道了']
+                        });
+                    }
+                }
             ]
         }
     ];

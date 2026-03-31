@@ -206,7 +206,14 @@ class AiChatSidebar extends React.Component {
             });
 
             if (!response.ok) {
-                throw new Error('Network response was not ok');
+                let errMsg = 'Network response was not ok';
+                try {
+                    const errorObj = await response.json();
+                    if (errorObj && errorObj.error) errMsg = errorObj.error;
+                } catch (e) {
+                    // Ignore JSON parse errors for non-JSON responses
+                }
+                throw new Error(errMsg);
             }
 
             const reader = response.body.getReader();
@@ -284,11 +291,19 @@ class AiChatSidebar extends React.Component {
 
         } catch (error) {
             console.error('Chat error:', error);
+            
+            let displayMsg = '❌ API 连接失败或跨域错误，请检查 5001 端口微服务是否运行！';
+            if (error.message && error.message.includes('未配置大模型')) {
+                displayMsg = `❌ **${error.message}**\n\n👉 请点击顶部菜单栏 **文件 -> 配置（API与人设）** 填入您的 DashScope API Key！`;
+            } else if (error.message && error.message !== 'Network response was not ok') {
+                displayMsg = `❌ 请求错误: ${error.message}`;
+            }
+
             this.setState(prevState => {
                 const newMessages = [...prevState.messages];
                 newMessages[newMessages.length - 1] = {
                     role: 'ai',
-                    content: '❌ API 连接失败或跨域错误，请检查 5001 端口微服务是否运行！',
+                    content: displayMsg,
                     isTyping: false
                 };
                 return { messages: newMessages, isGenerating: false };
