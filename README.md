@@ -1,6 +1,6 @@
-# Scratch Socratic AI Assistant (智能学伴与代码编译器)
+[🇨🇳 简体中文](README.md) | [🇺🇸 English](README_en.md)
 
-**Author:** 陈虹宇 (BNU)
+# Scratch Socratic AI Assistant (智能学伴与代码编译器)
 
 这是一个专为“少儿科技与编程教育”打造的**下一代图形化编程平台**。
 平台不仅无缝内嵌了一套高度修改过的 Scratch 3.0 前端编辑器（带侧边栏悬浮窗），更在背后接入了“苏格拉底式”的大语言模型（LLM）教练，引导学生计算思维，还能将大模型编写的“自然伪代码”或“Markdown 代码块”在毫秒级编译成标准的 SB3 AST 结构树，实现积木**一键瞬发上板**！
@@ -62,3 +62,15 @@ npm install
 npm start
 ```
 应用启动后，打开浏览器访问 **`http://localhost:8601`** 即可开启全新的智能 AI 创作之旅啦！🌟
+
+---
+
+## 📚 引用须知 (Citation)
+
+如果您在您的研究、论文或落地项目中使用了本项目，请引用或注明出处：
+> 陈虹宇 (Beijing Normal University). Scratch Socratic AI Assistant. GitHub: https://github.com/nijisakai/scratch_ai_assistant
+
+## 📝 作者与联系方式 (Author & Contact)
+
+- **作者 (Author)**: 陈虹宇 (BNU)
+- **邮箱 (Email)**: hychen@mail.bnu.edu.cn
