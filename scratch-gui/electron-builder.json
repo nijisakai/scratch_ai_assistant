@@ -1,0 +1,31 @@
+{
+  "appId": "com.scratch-ai.assistant",
+  "productName": "Scratch AI Assistant",
+  "directories": {
+    "output": "dist-electron"
+  },
+  "files": [
+    "build/**/*",
+    "electron/**/*"
+  ],
+  "extraResources": [
+    {
+      "from": "../python-dist/app",
+      "to": "python-dist/app",
+      "filter": ["**/*"]
+    },
+    {
+      "from": "../ai_persona.md",
+      "to": "defaults/ai_persona.md"
+    }
+  ],
+  "asar": true,
+  "win": {
+    "target": [
+      {
+        "target": "dir",
+        "arch": ["x64"]
+      }
+    ]
+  }
+}

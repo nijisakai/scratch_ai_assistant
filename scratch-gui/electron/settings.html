@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>配置 API 与 AI 人设</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background-color: #f5f6f8;
+            color: #333;
+            margin: 0;
+            padding: 24px;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            box-sizing: border-box;
+        }
+        h1 {
+            font-size: 20px;
+            margin-top: 0;
+            margin-bottom: 20px;
+        }
+        .form-group {
+            margin-bottom: 16px;
+            display: flex;
+            flex-direction: column;
+            flex: 1;
+        }
+        .form-group.fixed-height {
+            flex: 0 0 auto;
+        }
+        label {
+            font-weight: 600;
+            margin-bottom: 8px;
+            font-size: 14px;
+        }
+        input[type="text"] {
+            padding: 8px 12px;
+            font-size: 14px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            outline: none;
+        }
+        input[type="text"]:focus, textarea:focus {
+            border-color: #4c97ff;
+            box-shadow: 0 0 0 2px rgba(76, 151, 255, 0.2);
+        }
+        textarea {
+            padding: 12px;
+            font-size: 14px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            outline: none;
+            flex: 1;
+            resize: none;
+            font-family: monospace;
+        }
+        .help-text {
+            font-size: 12px;
+            color: #666;
+            margin-top: 4px;
+        }
+        .actions {
+            display: flex;
+            justify-content: flex-end;
+            margin-top: 16px;
+        }
+        button {
+            background-color: #4c97ff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            font-size: 14px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: 600;
+        }
+        button:hover {
+            background-color: #3385ff;
+        }
+        .status {
+            color: #28a745;
+            font-size: 14px;
+            margin-right: 16px;
+            align-self: center;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+    </style>
+</head>
+<body>
+    <h1>后端微服务与模型配置</h1>
+    
+    <div class="form-group fixed-height">
+        <label for="apiKeys">DashScope API Key (万相台)</label>
+        <input type="text" id="apiKeys" placeholder="sk-xxxxxxxxxxxxxxxxxxxxxxxx" />
+        <div class="help-text">
+            如果填写多个 Key，请用英文逗号分隔。<br>
+            🔗 <a href="#" id="apiKeyLink" style="color:#4c97ff; text-decoration:none;">获取 API Key：https://bailian.console.aliyun.com/cn-beijing?tab=model#/api-key</a>
+        </div>
+    </div>
+    
+    <div class="form-group">
+        <label for="persona">AI 人设配置 (ai_persona.md)</label>
+        <textarea id="persona" placeholder="加载中..."></textarea>
+        <div class="help-text">请保留最重要的数据格式要求，否则前端可能无法识别生成的积木代码。后端的模型会自动继承这里的人设设定。修改后即时生效，不需重启。</div>
+    </div>
+    
+    <div class="actions">
+        <div class="status" id="statusMessage">保存成功！</div>
+        <button id="saveBtn">保存配置</button>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', async () => {
+            if (window.electronAPI && window.electronAPI.getSettings) {
+                const settings = await window.electronAPI.getSettings();
+                document.getElementById('apiKeys').value = settings.apiKeys || '';
+                document.getElementById('persona').value = settings.persona || '';
+            }
+            
+            document.getElementById('saveBtn').addEventListener('click', async () => {
+                const apiKeys = document.getElementById('apiKeys').value;
+                const persona = document.getElementById('persona').value;
+                
+                if (window.electronAPI && window.electronAPI.saveSettings) {
+                    const result = await window.electronAPI.saveSettings({ apiKeys, persona });
+                    if (result.success) {
+                        const statusEl = document.getElementById('statusMessage');
+                        statusEl.style.opacity = 1;
+                        setTimeout(() => {
+                            statusEl.style.opacity = 0;
+                        }, 3000);
+                    } else {
+                        alert('保存失败：' + result.error);
+                    }
+                }
+            });
+
+            document.getElementById('apiKeyLink').addEventListener('click', (e) => {
+                e.preventDefault();
+                if (window.electronAPI && window.electronAPI.openLink) {
+                    window.electronAPI.openLink('https://bailian.console.aliyun.com/cn-beijing?tab=model#/api-key');
+                }
+            });
+        });
+    </script>
+</body>
+</html>

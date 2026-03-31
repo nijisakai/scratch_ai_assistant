@@ -1,4 +1,13 @@
 import os
+import sys
+import io
+
+# Force UTF-8 encoding for standard output and error to avoid Windows GBK errors
+if sys.stdout.encoding != 'utf-8':
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
+if sys.stderr.encoding != 'utf-8':
+    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8')
+
 import json
 import zipfile
 import base64
@@ -6,15 +15,26 @@ import time
 from flask import Flask, request, jsonify, send_file, Response, render_template_string
 from flask_cors import CORS
 import dashscope
+from dashscope import Generation
 from dotenv import load_dotenv
+
+dashscope.base_http_api_url = 'https://dashscope.aliyuncs.com/api/v1'
+
+# 获取配置文件目录：优先使用 Electron 传入的 APP_DATA_DIR，否则用脚本所在目录
+APP_DATA_DIR = os.environ.get('APP_DATA_DIR', os.path.dirname(os.path.abspath(__file__)))
 
 app = Flask(__name__, static_folder='static')
 CORS(app)
 os.makedirs("static/projects", exist_ok=True)
 
 def get_api_key():
-    load_dotenv(override=True)
-    return os.environ.get("DASHSCOPE_API_KEYS", "").split(',')[0]
+    env_path = os.path.join(APP_DATA_DIR, '.env')
+    if os.path.exists(env_path):
+        load_dotenv(env_path, override=True)
+    else:
+        load_dotenv(override=True)
+    key = os.environ.get("DASHSCOPE_API_KEYS", "").split(',')[0]
+    return key.strip()
 
 # --- Scratch SB3 Generator Helper ---
 def generate_sb3_template(project_id="10128407"):
@@ -96,10 +116,11 @@ def chat():
     api_key = get_api_key()
     if not api_key:
         return jsonify({"error": "未配置大模型 API Key！"}), 400
+    
     dashscope.api_key = api_key
     
     # dynamically load persona to allow real-time edits without restarting (if possible)
-    persona_path = os.path.join(os.path.dirname(__file__), 'ai_persona.md')
+    persona_path = os.path.join(APP_DATA_DIR, 'ai_persona.md')
     try:
         with open(persona_path, 'r', encoding='utf-8') as f:
             system_prompt = f.read()
@@ -109,25 +130,47 @@ def chat():
 1. 一步一步启发式提问，不要直接给完所有代码！
 2. 【致命纪律】：每次提到具体的积木指令，【绝对严禁】使用纯文字或单反引号，必须放在 ```scratch 和 ``` 组成的【多行代码块】中输出！'''
 
+    system_prompt += "\n\n最后，在每次回答的末尾，请务必执行以下两项任务：\n1. 用一段简短活泼的话，说明本次问答培养了什么【计算思维能力】（例如：逻辑推理、算法拆解、抽象建模等）。\n2. 使用以下格式输出3个简短的追问建议（猜测学生接下来可能想问的问题）。\n[SUGGESTIONS]\n1. 建议一\n2. 建议二\n3. 建议三\n[/SUGGESTIONS]"
+
     msgs_payload = [{'role': 'system', 'content': system_prompt}]
     for m in messages:
         msgs_payload.append({'role': m['role'], 'content': m['content']})
 
     def generate_stream():
-        response = dashscope.Generation.call(
-            model='qwen-plus',
+        response = Generation.call(
+            model='qwen3-max',
             messages=msgs_payload,
             result_format='message',
             stream=True,
-            incremental_output=True
+            incremental_output=True,
+            enable_thinking=False
         )
+        has_started_thinking = False
+        has_started_answering = False
         for res in response:
             if res.status_code == 200:
-                content = res.output.choices[0]['message']['content']
+                msg_obj = res.output.choices[0]['message']
+                reasoning = msg_obj.get('reasoning_content', '')
+                content = msg_obj.get('content', '')
+                
+                if reasoning:
+                    if not has_started_thinking:
+                        has_started_thinking = True
+                        yield f"data: {json.dumps({'content': '💭 **深度思考中:**\\n\\n> '})}\n\n"
+                    
+                    # 为了在前端渲染出漂亮的 blockquote，遇到换行时加上 '> '
+                    safe_reasoning = reasoning.replace('\\n', '\\n> ')
+                    yield f"data: {json.dumps({'content': safe_reasoning})}\n\n"
+
                 if content:
+                    if not has_started_answering:
+                        has_started_answering = True
+                        if has_started_thinking:
+                            yield f"data: {json.dumps({'content': '\\n\\n**💡 导师回复:**\\n\\n'})}\n\n"
                     yield f"data: {json.dumps({'content': content})}\n\n"
             else:
-                yield f"data: {json.dumps({'error': res.message})}\n\n"
+                msg = res.message if hasattr(res, 'message') else str(res)
+                yield f"data: {json.dumps({'error': msg})}\n\n"
                 
     return Response(generate_stream(), mimetype='text/event-stream')
 
@@ -140,7 +183,11 @@ def generate_sb3():
     api_key = get_api_key()
     if not api_key:
         return jsonify({"error": "未配置 API Key！"}), 400
-    dashscope.api_key = api_key
+    
+    client = OpenAI(
+        api_key=api_key,
+        base_url="https://dashscope.aliyuncs.com/compatible-mode/v1",
+    )
     
     summarize_prompt = """请总结上文引导过程。输出要求：
 1. 梳理出使用了哪些【关键积木组合】。
@@ -153,8 +200,17 @@ move (10) steps
 """
     msgs_payload = [{'role': m['role'], 'content': m['content']} for m in messages]
     msgs_payload.append({'role': 'user', 'content': summarize_prompt})
-    response_sum = dashscope.Generation.call(model='qwen-plus', messages=msgs_payload, result_format='message')
-    summary_md = response_sum.output.choices[0]['message']['content'] if response_sum.status_code == 200 else "总结暂无"
+    
+    response_sum = Generation.call(
+        model='qwen3-max', 
+        messages=msgs_payload, 
+        result_format='message',
+        enable_thinking=False
+    )
+    if response_sum.status_code == 200:
+        summary_md = response_sum.output.choices[0]['message']['content']
+    else:
+        summary_md = "总结暂无"
 
     # 为彻底避免 Scratch 3.0 底层因 AST 格式残缺导致整体加载崩溃
     # 停止使用动态不可靠的 LLM JSON 生成，转而注入一段极度稳定合法的【苏格拉底打底积木】，配合便利贴引导。
@@ -245,6 +301,7 @@ def compile_sb3_block():
    对于 `control_repeat`：
    - 次数参数必须叫 "TIMES" 并使用格式 `[1, [4, "4"]]`。
    - 包裹的【第一个子积木】的 id，必须以 `[2, "子积木的id"]` 格式存放在它的 "SUBSTACK" 参数里！
+3. 【致命规则】：`control_if` 和 `control_if_else` 的 "CONDITION" 输入参数【必须】是一个返回布尔值的块（例如 `operator_equals`、`operator_gt` 或 `sensing_touchingobject`）！【绝对不可】直接放入一个数字块（比如只放一个 5），否则会引发 AST 崩溃！
 例如一个 repeat 包含 move 的严格范例:
 [
   {
@@ -271,13 +328,14 @@ def compile_sb3_block():
 
     try:
         print(f"DEBUG Compiler Input: {block_text}", flush=True)
-        response = dashscope.Generation.call(
-            model='qwen-plus',
+        response = Generation.call(
+            model='qwen3-max',
             messages=[
                 {'role': 'system', 'content': system_prompt},
                 {'role': 'user', 'content': block_text}
             ],
-            result_format='message'
+            result_format='message',
+            enable_thinking=False
         )
         if response.status_code == 200:
             content = response.output.choices[0]['message']['content']
@@ -293,7 +351,8 @@ def compile_sb3_block():
             blocks_array = json.loads(content)
             return jsonify({"status": "success", "blocks": blocks_array}), 200
         else:
-            return jsonify({"error": f"API调用失败: {response.code}"}), 500
+            msg = response.message if hasattr(response, 'message') else str(response)
+            return jsonify({"error": f"API调用失败: {msg}"}), 500
     except Exception as e:
         return jsonify({"error": f"编译异常: {str(e)}"}), 500
 

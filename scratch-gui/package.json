@@ -9,7 +9,7 @@
     "type": "git",
     "url": "https://github.com/scratchfoundation/scratch-gui.git"
   },
-  "main": "./dist/scratch-gui.js",
+  "main": "electron/main.js",
   "scripts": {
     "build": "npm run clean && webpack",
     "clean": "rimraf ./build ./dist",
@@ -24,7 +24,9 @@
     "test:lint": "eslint . --ext .js,.jsx",
     "test:unit": "jest test[\\\\/]unit",
     "test:smoke": "jest --runInBand test[\\\\/]smoke",
-    "watch": "webpack --watch"
+    "watch": "webpack --watch",
+    "electron:dev": "npm run build && npx electron .",
+    "electron:build": "npm run build && node electron/package.js"
   },
   "config": {
     "commitizen": {
@@ -112,9 +114,12 @@
     "@babel/preset-react": "7.28.5",
     "@commitlint/cli": "17.8.1",
     "@commitlint/config-conventional": "17.8.1",
+    "@electron/packager": "^19.1.0",
     "babel-core": "7.0.0-bridge.0",
     "babel-loader": "9.2.1",
     "cheerio": "1.0.0-rc.3",
+    "electron": "^41.0.4",
+    "electron-builder": "^26.8.1",
     "enzyme": "3.11.0",
     "enzyme-adapter-react-16": "1.15.8",
     "eslint": "8.57.1",
