@@ -187,6 +187,12 @@ function createWindow() {
         console.error('Failed to load:', errorCode, errorDescription);
     });
 
+    // 解决 Scratch GUI 默认设置了 onbeforeunload 导致点击右上角关闭失效的问题
+    mainWindow.webContents.on('will-prevent-unload', (event) => {
+        // 阻止默认阻止行为，允许窗口直接关闭
+        event.preventDefault();
+    });
+
     mainWindow.on('closed', () => {
         mainWindow = null;
     });
@@ -235,7 +241,11 @@ app.whenReady().then(createWindow);
 
 app.on('will-quit', () => {
     if (pythonProcess) {
-        pythonProcess.kill();
+        if (process.platform === 'win32') {
+            spawn('taskkill', ['/pid', pythonProcess.pid, '/f', '/t']);
+        } else {
+            pythonProcess.kill();
+        }
         pythonProcess = null;
     }
 });

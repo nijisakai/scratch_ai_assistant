@@ -358,4 +358,4 @@ def compile_sb3_block():
 
 if __name__ == '__main__':
     print("🚀 Scratch AI 编程助手 - 后端启动运行于端口 5001")
-    app.run(host='0.0.0.0', port=5001)
+    app.run(host='127.0.0.1', port=5001)
